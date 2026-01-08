@@ -377,7 +377,7 @@ public class GameClientGUI {
         rematchButton.setPreferredSize(new Dimension(160, 35));
         rematchButton.setFont(new Font("Arial", Font.BOLD, 12));
         rematchButton.setBackground(new Color(70, 130, 200));
-        rematchButton.setForeground(Color.WHITE);
+        rematchButton.setForeground(Color.BLACK);
         rematchButton.setOpaque(true);
         rematchButton.setBorderPainted(false);
         rematchButton.setFocusPainted(false);
@@ -393,7 +393,7 @@ public class GameClientGUI {
         lobbyButton.setPreferredSize(new Dimension(160, 35));
         lobbyButton.setFont(new Font("Arial", Font.BOLD, 12));
         lobbyButton.setBackground(new Color(200, 70, 70));
-        lobbyButton.setForeground(Color.WHITE);
+        lobbyButton.setForeground(Color.BLACK);
         lobbyButton.setOpaque(true);
         lobbyButton.setBorderPainted(false);
         lobbyButton.setFocusPainted(false);
