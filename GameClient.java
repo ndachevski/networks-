@@ -2,9 +2,10 @@ import java.io.*;
 import java.net.Socket;
 import java.util.Map;
 
-/**
- * GameClient.java - Main client socket logic
- */
+// this is the main game client class that handles all socket communication with the server
+// it manages the game state, player information, and processes server messages
+// this class is the core of the client-side logic for the tic-tac-toe game
+// it maintains the current game board, opponent info, and handles all client operations
 public class GameClient {
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 12345;
@@ -30,16 +31,23 @@ public class GameClient {
     
     public boolean connect() {
         try {
+            // create a socket connection to the server on the specified host and port
             socket = new Socket(SERVER_HOST, SERVER_PORT);
+            // create input stream reader to recieve messages from the server
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            // create output stream writer to send messages to the server
             out = new PrintWriter(socket.getOutputStream(), true);
             
+            // start a new listener thread to listen for incoming messages from server
             listener = new ServerListener(in, this);
             listener.start();
             
+            // return true to indicate sucessful connection
             return true;
         } catch (IOException e) {
+            // if connection fails, print error message
             System.err.println("Error connecting to server: " + e.getMessage());
+            // return false to indicate connection failed
             return false;
         }
     }
@@ -198,21 +206,28 @@ public class GameClient {
         }
     }
     
+    // this updates the board when the server sends a move update
+    // it rebuilds the board from a map and updates whose turn it is
     private void handleUpdate(Map<String, Object> msg) {
         @SuppressWarnings("unchecked")
         Map<String, String> boardMap = (Map<String, String>) msg.get("board");
         currentPlayer = (String) msg.get("currentPlayer");
         
+        // rebuild the 2d board from the map of coordinates
         if (boardMap != null) {
             for (Map.Entry<String, String> entry : boardMap.entrySet()) {
+                // the key is "x,y" so we split it to get the coordinates
                 String[] coords = entry.getKey().split(",");
                 int x = Integer.parseInt(coords[0]);
                 int y = Integer.parseInt(coords[1]);
+                // put the piece on the board
                 currentBoard[x][y] = entry.getValue().charAt(0);
             }
         }
         
+        // show the updated board to the player
         ui.showBoard();
+        // tell the player if it's their turn or not
         if (currentPlayer.equals(player.getUsername())) {
             ui.showMessage("Your turn!");
         } else {
@@ -220,11 +235,14 @@ public class GameClient {
         }
     }
     
+    // this handles when the game ends
+    // it shows the final board and tells the player if they won, lost, or drew
     private void handleResult(Map<String, Object> msg) {
         String result = (String) msg.get("result");
         @SuppressWarnings("unchecked")
         Map<String, String> boardMap = (Map<String, String>) msg.get("board");
         
+        // rebuild the final board state from the map
         if (boardMap != null) {
             for (Map.Entry<String, String> entry : boardMap.entrySet()) {
                 String[] coords = entry.getKey().split(",");
@@ -234,9 +252,12 @@ public class GameClient {
             }
         }
         
+        // show the final board
         ui.showBoard();
+        // mark that the game is over
         inGame = false;
         
+        // display the game result
         if ("WIN".equals(result)) {
             ui.showMessage("Congratulations! You won!");
         } else if ("LOSS".equals(result)) {
@@ -245,6 +266,7 @@ public class GameClient {
             ui.showMessage("It's a draw!");
         }
         
+        // reset game info for the next game
         currentGameId = null;
         currentOpponent = null;
     }
@@ -257,34 +279,41 @@ public class GameClient {
     }
     
     public void sendMessage(String message) {
+        // send a message string to the server through the output writer
         if (out != null) {
             out.println(message);
         }
     }
     
     public void register(String username, String password) {
+        // create a registration request message
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "REGISTER");
         msg.put("username", username);
         msg.put("password", password);
+        // send the registration message to the server
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void login(String username, String password) {
+        // create a login request message
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LOGIN");
         msg.put("username", username);
         msg.put("password", password);
+        // send the login message to the server
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void listPlayers() {
+        // request a list of online players from the server
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LIST_PLAYERS");
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void challenge(String opponent) {
+        // send a challenge request to the specified opponent
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "CHALLENGE");
         msg.put("opponent", opponent);
@@ -292,6 +321,7 @@ public class GameClient {
     }
     
     public void respondToChallenge(String challenger, String response) {
+        // respond to a challenge request (ACCEPT or REJECT)
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "CHALLENGE_RESPONSE");
         msg.put("challenger", challenger);
@@ -300,97 +330,122 @@ public class GameClient {
     }
     
     public void makeMove(int x, int y) {
+        // check if player is actually in a game before sending move
         if (currentGameId == null || !inGame) {
             ui.showError("Not in a game");
             return;
         }
         
+        // create a data map for the move coordinates (x and y positions)
         Map<String, Object> data = new java.util.HashMap<>();
         data.put("x", String.valueOf(x));
         data.put("y", String.valueOf(y));
         
+        // create the complete move message with game id and player info
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "MOVE");
         msg.put("gameId", currentGameId);
         msg.put("player", player.getUsername());
         msg.put("data", data);
         
+        // send the move message to the server
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void requestRematch() {
+        // check if there was a previous opponent
         if (currentOpponent == null) {
             ui.showError("No previous opponent found");
             return;
         }
         
+        // create a rematch request message with the opponent
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "REMATCH_REQUEST");
         msg.put("opponent", currentOpponent);
+        // send the rematch request to the server
         sendMessage(Protocol.createMessage(msg));
         ui.showMessage("Requesting rematch with " + currentOpponent + "...");
     }
     
     public void respondToRematch(String requester, String response) {
+        // send the rematch response (ACCEPT or REJECT) to the opponent
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "REMATCH_RESPONSE");
         msg.put("opponent", requester);
         msg.put("response", response);
+        // send the response to the server
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void requestLeaderboard() {
+        // request the leaderboard from the server
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LEADERBOARD");
         sendMessage(Protocol.createMessage(msg));
     }
     
     public void logout() {
+        // create a logout message to tell the server this player is leaving
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LOGOUT");
+        // send the logout message to the server
         sendMessage(Protocol.createMessage(msg));
+        // close the socket connection after sending logout message
         disconnect();
     }
     
     public void disconnect() {
+        // stop the listener thread that receives messages from server
         if (listener != null) {
             listener.stopListening();
         }
         
         try {
+            // close the socket connection if it's open
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
         } catch (IOException e) {
+            // print error if closing socket fails
             System.err.println("Error closing socket: " + e.getMessage());
         }
     }
     
     public Player getPlayer() {
+        // return the player object for this client
         return player;
     }
     
     public char[][] getCurrentBoard() {
+        // return the current game board state
         return currentBoard;
     }
     
     public boolean isInGame() {
+        // check if the player is currently in an active game
         return inGame;
     }
     
     public String getCurrentPlayer() {
+        // return the username of whose turn it is to move
         return currentPlayer;
     }
     
     public static void main(String[] args) {
+        // create a new game client instance
         GameClient client = new GameClient();
         
+        // try to connect to the server
         if (!client.connect()) {
             System.err.println("Failed to connect to server");
             return;
         }
         
+        // start the console ui which lets the player type commands
         client.ui.run();
+        
+        // when the player is done, disconnect from the server
         client.disconnect();
     }
 }

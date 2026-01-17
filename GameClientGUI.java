@@ -4,9 +4,10 @@ import java.io.*;
 import java.net.Socket;
 import java.util.Map;
 
-/**
- * GameClientGUI.java - GUI version of the game client using Swing
- */
+// this class implements the graphical user interface for the game client using java swing
+// it creates windows for login, main menu, and game board using GUI components
+// it handles all user interactions through buttons, text fields, and list components
+// the GUI communicates with the server through the same protocol as the console client
 public class GameClientGUI {
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 12345;
@@ -35,11 +36,16 @@ public class GameClientGUI {
     private boolean inGame;
     
     public GameClientGUI() {
+        // create a player object to store this client's info
         player = new Player();
+        // initialize the game board (3x3 for tic-tac-toe)
         currentBoard = new char[3][3];
+        // we are not in a game yet
         inGame = false;
+        // create the model for the players list
         playersListModel = new DefaultListModel<>();
         
+        // show the login window first
         createLoginWindow();
     }
     
@@ -116,20 +122,26 @@ public class GameClientGUI {
         passwordField.addActionListener(e -> handleLogin());
     }
     
+    // this handles registration in the gui
+    // it gets the username and password from the text fields
+    // connects to the server and sends the registration message
     private void handleRegister() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
         
+        // check that username and password are not empty
         if (username.isEmpty() || password.isEmpty()) {
             showStatus("Please enter username and password", Color.RED);
             return;
         }
         
+        // connect to the server
         if (!connect()) {
             showStatus("Failed to connect to server", Color.RED);
             return;
         }
         
+        // send the registration message
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "REGISTER");
         msg.put("username", username);
@@ -137,20 +149,25 @@ public class GameClientGUI {
         sendMessage(Protocol.createMessage(msg));
     }
     
+    // this handles login in the gui
+    // it gets the username and password, connects to the server, and sends login message
     private void handleLogin() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
         
+        // check that username and password are not empty
         if (username.isEmpty() || password.isEmpty()) {
             showStatus("Please enter username and password", Color.RED);
             return;
         }
         
+        // connect to the server
         if (!connect()) {
             showStatus("Failed to connect to server", Color.RED);
             return;
         }
         
+        // send the login message with credentials
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LOGIN");
         msg.put("username", username);
@@ -158,21 +175,29 @@ public class GameClientGUI {
         sendMessage(Protocol.createMessage(msg));
     }
     
+    // this makes a connection to the server
+    // it checks if we already have a connection and reuses it
+    // if not connected, it creates a socket and starts a listener thread
     private boolean connect() {
+        // if already connected, reuse the connection
         if (socket != null && !socket.isClosed()) {
-            return true; // Already connected
+            return true;
         }
         
+        // try to create a new socket connection
         try {
             socket = new Socket(SERVER_HOST, SERVER_PORT);
+            // set up the input and output streams
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
             
+            // start a listener thread to recieve messages from the server
             listener = new ServerListenerGUI(in, this);
             listener.start();
             
             return true;
         } catch (IOException e) {
+            // show error if connection fails
             showStatus("Connection error: " + e.getMessage(), Color.RED);
             return false;
         }
@@ -816,12 +841,16 @@ public class GameClientGUI {
     }
     
     public static void main(String[] args) {
+        // use invokeLater to run the gui on the swing event thread
+        // this is required for thread safety in swing applications
         SwingUtilities.invokeLater(() -> {
             try {
+                // use the system look and feel so it matches the os style
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
             } catch (Exception e) {
                 e.printStackTrace();
             }
+            // create a new gui client instance which shows the login window
             new GameClientGUI();
         });
     }

@@ -5,9 +5,10 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * GameServer.java - Main server that manages connections and game sessions
- */
+// this is the main server class that manages all client connections and game sesions
+// it runs on a specified port and accepts incoming client connections indefinately
+// each client connection gets its own ClientHandler thread for processing messages
+// the server maintains collections of clients, active games, pending challenges, and rematch requests
 public class GameServer {
     private static final int PORT = 12345;
     private ServerSocket serverSocket;
@@ -19,25 +20,36 @@ public class GameServer {
     private Map<String, String> lastOpponents; // player -> last opponent
     
     public GameServer() {
+        // create the user manager which handles all accounts and statistics
         userManager = new UserManager();
+        // create a map to store connected clients
         clients = new ConcurrentHashMap<>();
+        // create a map to store active games
         games = new ConcurrentHashMap<>();
+        // create a map to track who challenged who
         pendingChallenges = new ConcurrentHashMap<>();
+        // create a map to track rematch requests
         pendingRematches = new ConcurrentHashMap<>();
+        // create a map to remember last opponents for easy rematches
         lastOpponents = new ConcurrentHashMap<>();
     }
     
     public void start() {
         try {
+            // create the server socket on the specified port
             serverSocket = new ServerSocket(PORT);
             System.out.println("Game Server started on port " + PORT);
             System.out.println("Waiting for clients...");
             
+            // infinite loop that accepts client connections
             while (true) {
+                // wait for a client to connect
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("New client connected: " + clientSocket.getRemoteSocketAddress());
                 
+                // create a new handler thread for this client
                 ClientHandler handler = new ClientHandler(clientSocket, userManager, this);
+                // start the handler thread
                 handler.start();
             }
         } catch (IOException e) {
@@ -159,6 +171,9 @@ public class GameServer {
         sendToPlayer(player2, message);
     }
     
+    // this processes a player's move and handles game completion
+    // it validates the move, updates the board, and checks for win/draw
+    // when the game ends, it updates player stats and sends results
     public void processMove(String gameId, String player, int x, int y) {
         GameSession game = games.get(gameId);
         if (game == null) {
@@ -166,22 +181,25 @@ public class GameServer {
             return;
         }
         
+        // check if the player is actually in this game
         if (!game.getPlayer1().equals(player) && !game.getPlayer2().equals(player)) {
             sendToPlayer(player, Protocol.createErrorMessage("Not a player in this game"));
             return;
         }
         
+        // check if it's the player's turn
         if (!game.getCurrentPlayer().equals(player)) {
             sendToPlayer(player, Protocol.createErrorMessage("Not your turn"));
             return;
         }
         
+        // try to make the move on the board
         if (!game.makeMove(player, x, y)) {
             sendToPlayer(player, Protocol.createErrorMessage("Invalid move, try again"));
             return;
         }
         
-        // Send update to both players
+        // send the updated board to both players
         Map<String, Object> updateMsg = new java.util.HashMap<>();
         updateMsg.put("type", "UPDATE");
         updateMsg.put("gameId", gameId);
@@ -192,16 +210,17 @@ public class GameServer {
         sendToPlayer(game.getPlayer1(), updateMessage);
         sendToPlayer(game.getPlayer2(), updateMessage);
         
-        // Check if game is over
+        // check if the game is now finished
         if (game.isGameOver()) {
+            // determine what happened: win, loss, or draw
             String result1 = game.getResultFor(game.getPlayer1());
             String result2 = game.getResultFor(game.getPlayer2());
             
-            // Update statistics
+            // save the new stats to the database
             userManager.updateStats(game.getPlayer1(), result1);
             userManager.updateStats(game.getPlayer2(), result2);
             
-            // Send results
+            // send the game result to both players
             Map<String, Object> resultMsg1 = new java.util.HashMap<>();
             resultMsg1.put("type", "RESULT");
             resultMsg1.put("gameId", gameId);
@@ -217,10 +236,11 @@ public class GameServer {
             sendToPlayer(game.getPlayer1(), Protocol.createMessage(resultMsg1));
             sendToPlayer(game.getPlayer2(), Protocol.createMessage(resultMsg2));
             
-            // Store last opponents for rematch
+            // remember who played each other for rematches
             lastOpponents.put(game.getPlayer1(), game.getPlayer2());
             lastOpponents.put(game.getPlayer2(), game.getPlayer1());
             
+            // remove the game since it's done
             games.remove(gameId);
         }
     }
@@ -292,9 +312,14 @@ public class GameServer {
         }
     }
     
+    // this sends the leaderboard to a player
+    // it gets the top 10 players, formats them with rank numbers, and sends them
     public void sendLeaderboard(ClientHandler handler) {
+        // get the top 10 players sorted by wins
         java.util.List<UserManager.User> leaderboard = userManager.getLeaderboard(10);
         
+        // build a string with all the leaderboard entries
+        // each entry has rank, username, wins, losses, and draws
         StringBuilder leaderboardStr = new StringBuilder();
         int rank = 1;
         for (UserManager.User user : leaderboard) {
@@ -309,6 +334,7 @@ public class GameServer {
             rank++;
         }
         
+        // send the leaderboard string to the player
         Map<String, Object> msg = new java.util.HashMap<>();
         msg.put("type", "LEADERBOARD");
         msg.put("data", leaderboardStr.toString());
